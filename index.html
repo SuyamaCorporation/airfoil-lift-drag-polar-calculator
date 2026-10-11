@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Airfoil Lift Coefficient & Drag Polar Calculator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div class="max-w-4xl mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold text-gray-900 mb-1">Airfoil Lift & Drag Polar Calculator</h1>
+  <p class="text-sm text-gray-500 mb-6">Thin airfoil theory with finite wing correction (Prandtl lifting line). Select a preset or enter custom parameters.</p>
+
+  <div class="bg-white rounded-xl shadow p-6 mb-6">
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Preset Airfoil</label>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="loadPreset('naca0012')" class="preset-btn px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-blue-50 hover:border-blue-400 transition">NACA 0012</button>
+        <button onclick="loadPreset('naca2412')" class="preset-btn px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-blue-50 hover:border-blue-400 transition">NACA 2412</button>
+        <button onclick="loadPreset('clarky')" class="preset-btn px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-blue-50 hover:border-blue-400 transition">Clark Y</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="alphaMin">α min (°)</label>
+        <input id="alphaMin" type="number" value="-10" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="alphaMax">α max (°)</label>
+        <input id="alphaMax" type="number" value="20" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="alpha0">Zero-lift angle α₀ (°)</label>
+        <input id="alpha0" type="number" value="0" step="0.1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="CLalpha">Lift curve slope (per rad)</label>
+        <input id="CLalpha" type="number" value="6.283" step="0.001" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="AR">Aspect Ratio (AR)</label>
+        <input id="AR" type="number" value="8" step="0.1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="e">Span Efficiency (e)</label>
+        <input id="e" type="number" value="0.85" step="0.01" min="0.1" max="1.0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="CD0">Parasitic Drag CD₀</label>
+        <input id="CD0" type="number" value="0.015" step="0.001" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    </div>
+    <button onclick="calculate()" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">Calculate & Plot</button>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div class="text-xs text-blue-600 font-medium uppercase tracking-wide">Max L/D</div>
+        <div id="maxLD" class="text-2xl font-bold text-blue-900 mt-1">—</div>
+      </div>
+      <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+        <div class="text-xs text-green-600 font-medium uppercase tracking-wide">CL at max L/D</div>
+        <div id="clMaxLD" class="text-2xl font-bold text-green-900 mt-1">—</div>
+      </div>
+      <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+        <div class="text-xs text-purple-600 font-medium uppercase tracking-wide">α at max L/D</div>
+        <div id="alphaMaxLD" class="text-2xl font-bold text-purple-900 mt-1">—</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white rounded-xl shadow p-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">CL vs Angle of Attack</h2>
+        <svg id="clAlphaSvg" viewBox="0 0 320 220" class="w-full border border-gray-100 rounded"></svg>
+      </div>
+      <div class="bg-white rounded-xl shadow p-4">
+        <h2 class="text-base font-semibold text-gray-800 mb-3">Drag Polar (CL vs CD)</h2>
+        <svg id="polarSvg" viewBox="0 0 320 220" class="w-full border border-gray-100 rounded"></svg>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 overflow-x-auto">
+      <h2 class="text-base font-semibold text-gray-800 mb-3">Data Table</h2>
+      <table class="w-full text-sm" id="dataTable"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS = {
+  naca0012: { alpha0: 0, CLalpha: 6.283, CD0: 0.008, label: 'NACA 0012' },
+  naca2412: { alpha0: -2.0, CLalpha: 6.283, CD0: 0.009, label: 'NACA 2412' },
+  clarky:   { alpha0: -5.0, CLalpha: 6.0,   CD0: 0.010, label: 'Clark Y' },
+};
+
+function loadPreset(key) {
+  const p = PRESETS[key];
+  document.getElementById('alpha0').value = p.alpha0;
+  document.getElementById('CLalpha').value = p.CLalpha;
+  document.getElementById('CD0').value = p.CD0;
+  calculate();
+}
+
+function calculate() {
+  const alphaMin = parseFloat(document.getElementById('alphaMin').value);
+  const alphaMax = parseFloat(document.getElementById('alphaMax').value);
+  const alpha0 = parseFloat(document.getElementById('alpha0').value);
+  const CLa = parseFloat(document.getElementById('CLalpha').value);
+  const AR = parseFloat(document.getElementById('AR').value);
+  const e = parseFloat(document.getElementById('e').value);
+  const CD0 = parseFloat(document.getElementById('CD0').value);
+
+  const alphas = [];
+  for (let a = alphaMin; a <= alphaMax; a += 0.5) alphas.push(a);
+
+  const data = alphas.map(a => {
+    const aRad = (a - alpha0) * Math.PI / 180;
+    const CL = CLa * aRad / (1 + CLa / (Math.PI * e * AR));
+    const CD = CD0 + CL * CL / (Math.PI * e * AR);
+    const LD = CD > 0 ? CL / CD : 0;
+    return { alpha: a, CL, CD, LD };
+  });
+
+  let maxLD = -Infinity, maxLDidx = 0;
+  data.forEach((d, i) => { if (d.LD > maxLD) { maxLD = d.LD; maxLDidx = i; } });
+
+  document.getElementById('maxLD').textContent = maxLD.toFixed(2);
+  document.getElementById('clMaxLD').textContent = data[maxLDidx].CL.toFixed(3);
+  document.getElementById('alphaMaxLD').textContent = data[maxLDidx].alpha.toFixed(1) + '°';
+
+  drawCLAlpha(data, maxLDidx);
+  drawPolar(data, maxLDidx);
+  drawTable(data, maxLDidx);
+  document.getElementById('results').classList.remove('hidden');
+}
+
+function linScale(val, vMin, vMax, pMin, pMax) {
+  return pMin + (val - vMin) / (vMax - vMin) * (pMax - pMin);
+}
+
+function drawCLAlpha(data, maxIdx) {
+  const svg = document.getElementById('clAlphaSvg');
+  svg.innerHTML = '';
+  const pad = { l: 40, r: 15, t: 15, b: 30 };
+  const W = 320, H = 220;
+  const xVals = data.map(d => d.alpha);
+  const yVals = data.map(d => d.CL);
+  const xMin = Math.min(...xVals), xMax = Math.max(...xVals);
+  const yMin = Math.min(...yVals) - 0.1, yMax = Math.max(...yVals) + 0.1;
+  const sx = v => linScale(v, xMin, xMax, pad.l, W - pad.r);
+  const sy = v => linScale(v, yMin, yMax, H - pad.b, pad.t);
+
+  // Grid
+  [0].forEach(y => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', pad.l); line.setAttribute('x2', W - pad.r);
+    line.setAttribute('y1', sy(y)); line.setAttribute('y2', sy(y));
+    line.setAttribute('stroke', '#e5e7eb'); line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+  });
+
+  // Axes
+  const makeAxis = (x1,y1,x2,y2) => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+    l.setAttribute('stroke','#9ca3af'); l.setAttribute('stroke-width','1.5');
+    svg.appendChild(l);
+  };
+  makeAxis(pad.l, H-pad.b, W-pad.r, H-pad.b);
+  makeAxis(pad.l, pad.t, pad.l, H-pad.b);
+
+  // Labels
+  const makeText = (x,y,txt,cls='') => {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x); t.setAttribute('y',y);
+    t.setAttribute('font-size','9'); t.setAttribute('fill','#6b7280');
+    if (cls) t.setAttribute('text-anchor', cls);
+    t.textContent = txt;
+    svg.appendChild(t);
+  };
+  makeText(W/2, H-2, 'Angle of Attack (°)', 'middle');
+  [-10,0,10,20].forEach(v => {
+    if (v >= xMin && v <= xMax) makeText(sx(v), H-pad.b+12, v+'°', 'middle');
+  });
+  [-0.5,0,0.5,1.0,1.5].forEach(v => {
+    if (v >= yMin && v <= yMax) makeText(2, sy(v)+3, v.toFixed(1));
+  });
+
+  // Line
+  const pts = data.map(d => `${sx(d.alpha)},${sy(d.CL)}`).join(' ');
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  polyline.setAttribute('points', pts);
+  polyline.setAttribute('fill','none'); polyline.setAttribute('stroke','#3b82f6'); polyline.setAttribute('stroke-width','2');
+  svg.appendChild(polyline);
+
+  // Max L/D highlight
+  const mx = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  mx.setAttribute('cx', sx(data[maxIdx].alpha)); mx.setAttribute('cy', sy(data[maxIdx].CL));
+  mx.setAttribute('r','5'); mx.setAttribute('fill','#ef4444');
+  svg.appendChild(mx);
+}
+
+function drawPolar(data, maxIdx) {
+  const svg = document.getElementById('polarSvg');
+  svg.innerHTML = '';
+  const pad = { l: 45, r: 15, t: 15, b: 30 };
+  const W = 320, H = 220;
+  const xVals = data.map(d => d.CD);
+  const yVals = data.map(d => d.CL);
+  const xMin = 0, xMax = Math.max(...xVals) * 1.1;
+  const yMin = Math.min(...yVals) - 0.1, yMax = Math.max(...yVals) + 0.1;
+  const sx = v => linScale(v, xMin, xMax, pad.l, W - pad.r);
+  const sy = v => linScale(v, yMin, yMax, H - pad.b, pad.t);
+
+  const makeAxis = (x1,y1,x2,y2) => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+    l.setAttribute('stroke','#9ca3af'); l.setAttribute('stroke-width','1.5');
+    svg.appendChild(l);
+  };
+  makeAxis(pad.l, H-pad.b, W-pad.r, H-pad.b);
+  makeAxis(pad.l, pad.t, pad.l, H-pad.b);
+
+  const makeText = (x,y,txt,cls='') => {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x); t.setAttribute('y',y);
+    t.setAttribute('font-size','9'); t.setAttribute('fill','#6b7280');
+    if (cls) t.setAttribute('text-anchor', cls);
+    t.textContent = txt;
+    svg.appendChild(t);
+  };
+  makeText(W/2, H-2, 'Drag Coefficient (CD)', 'middle');
+
+  const pts = data.map(d => `${sx(d.CD)},${sy(d.CL)}`).join(' ');
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  polyline.setAttribute('points', pts);
+  polyline.setAttribute('fill','none'); polyline.setAttribute('stroke','#8b5cf6'); polyline.setAttribute('stroke-width','2');
+  svg.appendChild(polyline);
+
+  const mx = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  mx.setAttribute('cx', sx(data[maxIdx].CD)); mx.setAttribute('cy', sy(data[maxIdx].CL));
+  mx.setAttribute('r','5'); mx.setAttribute('fill','#ef4444');
+  svg.appendChild(mx);
+  makeText(sx(data[maxIdx].CD)+6, sy(data[maxIdx].CL)-4, 'Max L/D');
+}
+
+function drawTable(data, maxIdx) {
+  const tbl = document.getElementById('dataTable');
+  tbl.innerHTML = '';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr class="bg-gray-50"><th class="text-left p-2 text-xs font-medium text-gray-600">α (°)</th><th class="text-right p-2 text-xs font-medium text-gray-600">CL</th><th class="text-right p-2 text-xs font-medium text-gray-600">CD</th><th class="text-right p-2 text-xs font-medium text-gray-600">L/D</th></tr>';
+  tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  // Show every 2 degrees
+  data.filter((d, i) => d.alpha % 2 === 0).forEach((d, i) => {
+    const tr = document.createElement('tr');
+    const isMax = Math.abs(d.alpha - data[maxIdx].alpha) < 0.3;
+    tr.className = isMax ? 'bg-red-50' : (i % 2 === 0 ? 'bg-white' : 'bg-gray-50');
+    const cells = [d.alpha.toFixed(1), d.CL.toFixed(3), d.CD.toFixed(4), d.LD.toFixed(2)];
+    const aligns = ['text-left','text-right','text-right','text-right'];
+    cells.forEach((c, ci) => {
+      const td = document.createElement('td');
+      td.className = `p-2 ${aligns[ci]} text-sm`;
+      td.textContent = c + (isMax && ci === 3 ? ' ★' : '');
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+calculate();
+</script>
+</body>
+</html>
